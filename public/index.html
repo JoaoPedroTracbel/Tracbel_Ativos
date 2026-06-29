@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracbel Ativos | Sistema de Inventário</title>
+    <link rel="stylesheet" href="/css/estilo.css">
+    <link rel="icon" type="image/png" href="/css/images/TRACBEL_SIMB_COR.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="navbar">
+        <div class="navbar-brand">
+            <div class="logo-container">
+                <img src="css/images/TRACBEL_HZ_COR_NEG_PR.png" alt="Tracbel">
+                <span class="brand-sub">Ativos</span>
+            </div>
+        </div>
+        <div class="user-profile">
+            <span id="user-display"><i class="fa-solid fa-user-circle"></i> Validando acesso...</span>
+            <button id="btn-logoff" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="tabs-menu">
+            <button class="tab-btn active" onclick="alternarAba('lista')"><i class="fa-solid fa-list"></i> Inventário</button>
+            <button class="tab-btn" onclick="alternarAba('cadastro')"><i class="fa-solid fa-plus"></i> Cadastrar Ativo</button>
+            <button id="btn-compras-aba" class="tab-btn" onclick="alternarAba('compras')">
+                <i class="fa-solid fa-cart-shopping"></i> Compras TI
+                <span id="compras-badge" style="display: none; background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; font-weight: bold; margin-left: 5px;">0</span>
+            </button>
+            <button id="btn-usuarios-aba" class="tab-btn" onclick="alternarAba('usuarios')"><i class="fa-solid fa-users"></i> Usuários TI</button>
+            <button id="btn-celulares-aba" class="tab-btn" onclick="alternarAba('celulares')"><i class="fa-solid fa-mobile-screen-button"></i> Celulares</button>
+        </div>
+
+        <!-- ABA INVENTÁRIO (COMPUTADORES) -->
+        <div id="aba-lista" class="tab-content active">
+            <section class="dashboard-cards">
+                <div class="card"><h3>Total de Ativos</h3><p id="total-ativos">0</p></div>
+                <div class="card card-warning"><h3>Garantias Expiradas</h3><p id="garantias-expiradas">0</p></div>
+                <div class="card card-info" style="border-left-color: #2980b9;"><h3>Disponíveis na Filial</h3><p id="dispositivos-disponiveis" style="color: #2980b9;">0</p></div>
+            </section>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; margin-bottom: 25px;">
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="card card-warning" style="border-left-color: #e67e22; margin: 0; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                        <h3 style="color: #e67e22;"><i class="fa-solid fa-gavel"></i> Compras Aguardando Veredito</h3>
+                        <p id="compras-pendentes-dash" style="color: #e67e22; font-size: 2.2rem; font-weight: bold; margin-top: 5px;">0</p>
+                    </div>
+                    <div class="card card-info" style="border-left-color: #2ecc71; margin: 0; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                        <h3 style="color: #2ecc71;"><i class="fa-solid fa-calendar-check"></i> Compras Aprovadas no Mês</h3>
+                        <p id="compras-mes-dash" style="color: #2ecc71; font-size: 2.2rem; font-weight: bold; margin-top: 5px;">0</p>
+                    </div>
+                </div>
+                <div style="background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #eef2f5; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <h4 style="color: var(--tracbel-dark); font-size: 0.9rem; margin-bottom: 10px; width: 100%; text-align: left;"><i class="fa-solid fa-chart-pie"></i> Distribuição de Ativos por Empresa</h4>
+                    <div style="width: 100%; max-width: 250px; height: 160px; display: flex; align-items: center; justify-content: center;">
+                        <canvas id="chart-empresas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <section class="actions-bar">
+                <div class="search-box" style="width: 550px; gap: 10px;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-input" placeholder="Digite o termo de busca...">
+                    <select id="filtro-coluna" style="border: none; background: #eef2f5; padding: 5px; border-radius: 4px; font-weight: bold; color: #333; outline: none; cursor: pointer;">
+                        <option value="todos">Todas as Colunas</option>
+                        <option value="service_tag">Service Tag</option>
+                        <option value="colaborador">Colaborador / Destino</option>
+                        <option value="modelo">Modelo</option>
+                        <option value="filial_atual">Filial Atual</option>
+                        <option value="status">Status</option>
+                    </select>
+                </div>
+
+                <div class="colunas-dropdown-wrapper" style="position: relative; display: inline-block;">
+                    <button id="btn-toggle-colunas" class="btn-primary" style="background: #34495e; color: #fff; height: 38px; justify-content: center; gap: 8px;">
+                        <i class="fa-solid fa-table-columns"></i> Exibir / Ocultar Colunas <i class="fa-solid fa-chevron-down" style="font-size: 0.75rem;"></i>
+                    </button>
+                    <div id="dropdown-colunas-conteudo" style="display: none; position: absolute; top: 42px; right: 0; background: #ffffff; border: 1px solid #dcdde1; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); padding: 15px; width: 280px; z-index: 1000;">
+                        <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #edf2f7; padding-bottom: 8px; margin-bottom: 10px;">
+                            <i class="fa-solid fa-filter" style="color: #a0aec0; font-size: 0.85rem;"></i>
+                            <input type="text" id="busca-coluna-input" placeholder="Buscar nome da coluna..." style="width: 100%; border: none; outline: none; font-size: 0.85rem;">
+                        </div>
+                        <div id="container-config-colunas" style="max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
+                    </div>
+                </div>
+
+                <div class="upload-zone">
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <label for="file-input" class="btn-primary"><i class="fa-solid fa-file-excel"></i> Importar CSV / XLSX</label>
+                        <input type="file" id="file-input" name="planilha" accept=".xlsx, .xls, .csv" style="display: none;">
+                        <span id="file-name" style="margin-left: 10px; font-size: 0.85rem; color: #666;">Nenhum arquivo</span>
+                    </form>
+                </div>
+            </section>
+
+            <main class="table-container">
+                <table id="tabela-ativos">
+                    <thead>
+                        <tr>
+                            <th data-col-id="service_tag" onclick="ordenarPor('service_tag')">Service Tag <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="empresa" onclick="ordenarPor('empresa')">Empresa <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="entrega" onclick="ordenarPor('entrega')">Entrega <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="filial_atual" onclick="ordenarPor('filial_atual')">Filial Atual <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="tipo" onclick="ordenarPor('tipo')">Tipo <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="modelo" onclick="ordenarPor('modelo')">Modelo <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="colaborador" onclick="ordenarPor('colaborador')">Colaborador <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="duplicado" onclick="ordenarPor('duplicado')">Duplicado? <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="status" onclick="ordenarPor('status')">Status <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="cargo" onclick="ordenarPor('cargo')">Cargo <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="ultimo_colaborador" onclick="ordenarPor('ultimo_colaborador')">Último Colab. <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="multi_usuario" onclick="ordenarPor('multi_usuario')">Multi Usuário? <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="observacao" onclick="ordenarPor('observacao')">Observação <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="service_tag_monitor" onclick="ordenarPor('service_tag_monitor')">ST Monitor <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="cc" onclick="ordenarPor('cc')">CC <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="cc_contab" onclick="ordenarPor('cc_contab')">CC Contab <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="desc_cc_contab" onclick="ordenarPor('desc_cc_contab')">Desc CC Contab <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="emp_colab" onclick="ordenarPor('emp_colab')">Emp Colab <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="filial_colab" onclick="ordenarPor('filial_colab')">Filial Colab <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="filial_rh_corrigido" onclick="ordenarPor('filial_rh_corrigido')">Filial RH Corrigido <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="coluna2" onclick="ordenarPor('coluna2')">Coluna2 <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="cc_dif" onclick="ordenarPor('cc_dif')">CC DIF <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="filial_dif" onclick="ordenarPor('filial_dif')">FILIAL DIF <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="nf_transf" onclick="ordenarPor('nf_transf')">NF Transf <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="filial_dest_transf" onclick="ordenarPor('filial_dest_transf')">Filial Dest Transf <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="order_sale" onclick="ordenarPor('order_sale')">Order Sale <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="remessa" onclick="ordenarPor('remessa')">Remessa <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="contrato" onclick="ordenarPor('contrato')">Contrato <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="patrimonio" onclick="ordenarPor('patrimonio')">Patrimônio <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="envio_dell" onclick="ordenarPor('envio_dell')">Envio Dell <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="fim_garantia" onclick="ordenarPor('fim_garantia')">Fim Garantia <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="dias_para_vencer" onclick="ordenarPor('dias_para_vencer')">Dias p/ Vencer <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="tempo_computador">Tempo Computador</th>
+                            <th data-col-id="tempo_garantia">Tempo Garantia</th>
+                            <th data-col-id="reportado_inventario" onclick="ordenarPor('reportado_inventario')">Reportado Inv. <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="usuario_inventario" onclick="ordenarPor('usuario_inventario')">Usuário Inv. <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="memoria" onclick="ordenarPor('memoria')">Memória <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="memoria_adicional" onclick="ordenarPor('memoria_adicional')">Memória Adicional <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="localizacao" onclick="ordenarPor('localizacao')">Localização <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="troca_chg_2_leva_2025" onclick="ordenarPor('troca_chg_2_leva_2025')">Troca CHG 2025 <i class="fa-solid fa-sort"></i></th>
+                            <th data-col-id="x" onclick="ordenarPor('x')">X <i class="fa-solid fa-sort"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ativos-corpo"></tbody>
+                </table>
+            </main>
+        </div>
+
+        <!-- ABA CADASTRO UNIFICADA -->
+        <div id="aba-cadastro" class="tab-content">
+            <div class="form-container">
+                <h3><i class="fa-solid fa-laptop-code"></i> Cadastro de Ativo</h3>
+
+                <div class="sub-tabs" style="display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid #eef2f5;">
+                    <button class="sub-tab-btn active" data-sub="computador" style="background: none; border: none; padding: 10px 20px; font-weight: bold; color: var(--tracbel-dark); cursor: pointer; border-bottom: 3px solid var(--tracbel-yellow);">Computador</button>
+                    <button class="sub-tab-btn" data-sub="celular" style="background: none; border: none; padding: 10px 20px; font-weight: bold; color: #666; cursor: pointer; border-bottom: 3px solid transparent;">Celular</button>
+                </div>
+
+                <!-- Formulário Computador -->
+                <form id="form-cadastro-manual">
+                    <div class="form-section-title">1. Informações do Ativo</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Service Tag *</label><input type="text" name="service_tag" maxlength="30" required></div>
+                        <div class="form-group"><label>Tipo</label><input type="text" name="tipo" maxlength="50"></div>
+                        <div class="form-group"><label>Modelo</label><input type="text" name="modelo" maxlength="100"></div>
+                        <div class="form-group"><label>Patrimônio</label><input type="text" name="patrimonio" maxlength="50"></div>
+                        <div class="form-group"><label>Memória</label><input type="text" name="memoria" maxlength="30"></div>
+                        <div class="form-group"><label>Memória Adicional</label><input type="text" name="memoria_adicional" maxlength="30"></div>
+                        <div class="form-group"><label>ST Monitor</label><input type="text" name="service_tag_monitor" maxlength="50"></div>
+                        <div class="form-group"><label>Status</label><input type="text" name="status" maxlength="50"></div>
+                    </div>
+                    <div class="form-section-title">2. Atribuição</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Colaborador</label><input type="text" name="colaborador" maxlength="200"></div>
+                        <div class="form-group"><label>Último Colaborador</label><input type="text" name="ultimo_colaborador" maxlength="200"></div>
+                        <div class="form-group"><label>Cargo</label><input type="text" name="cargo" maxlength="150"></div>
+                        <div class="form-group"><label>Multi Usuário?</label><input type="text" name="multi_usuario" maxlength="20"></div>
+                        <div class="form-group"><label>Empresa</label><input type="text" name="empresa" maxlength="100"></div>
+                        <div class="form-group"><label>Filial Atual</label><input type="text" name="filial_atual" maxlength="100"></div>
+                        <div class="form-group"><label>Localização</label><input type="text" name="localizacao" maxlength="150"></div>
+                        <div class="form-group"><label>Duplicado?</label><input type="text" name="duplicado" maxlength="20"></div>
+                    </div>
+                    <div class="form-section-title">3. Contabilidade</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>CC</label><input type="text" name="cc" maxlength="50"></div>
+                        <div class="form-group"><label>CC Contab</label><input type="text" name="cc_contab" maxlength="50"></div>
+                        <div class="form-group"><label>Desc CC Contab</label><input type="text" name="desc_cc_contab" maxlength="150"></div>
+                        <div class="form-group"><label>Emp Colab</label><input type="text" name="emp_colab" maxlength="100"></div>
+                        <div class="form-group"><label>Filial Colab</label><input type="text" name="filial_colab" maxlength="100"></div>
+                        <div class="form-group"><label>Filial RH Corrigido</label><input type="text" name="filial_rh_corrigido" maxlength="100"></div>
+                        <div class="form-group"><label>CC DIF</label><input type="text" name="cc_dif" maxlength="50"></div>
+                        <div class="form-group"><label>FILIAL DIF</label><input type="text" name="filial_dif" maxlength="100"></div>
+                    </div>
+                    <div class="form-section-title">4. Logística e Garantias</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Entrega</label><input type="text" name="entrega" maxlength="100"></div>
+                        <div class="form-group"><label>NF Transf</label><input type="text" name="nf_transf" maxlength="50"></div>
+                        <div class="form-group"><label>Filial Dest Transf</label><input type="text" name="filial_dest_transf" maxlength="100"></div>
+                        <div class="form-group"><label>Order Sale</label><input type="text" name="order_sale" maxlength="50"></div>
+                        <div class="form-group"><label>Remessa</label><input type="text" name="remessa" maxlength="50"></div>
+                        <div class="form-group"><label>Contrato</label><input type="text" name="contrato" maxlength="100"></div>
+                        <div class="form-group"><label>Envio Dell</label><input type="text" name="envio_dell" placeholder="DD/MM/AAAA ou AAAA-MM-DD" maxlength="30"></div>
+                        <div class="form-group"><label>Fim Garantia</label><input type="text" name="fim_garantia" placeholder="DD/MM/AAAA ou AAAA-MM-DD" maxlength="30"></div>
+                    </div>
+                    <div class="form-section-title">5. Inventário</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Reportado Inventário</label><input type="text" name="reportado_inventario" maxlength="50"></div>
+                        <div class="form-group"><label>Usuário Inventário</label><input type="text" name="usuario_inventario" maxlength="100"></div>
+                        <div class="form-group"><label>Troca CHG 2025</label><input type="text" name="troca_chg_2_leva_2025" maxlength="50"></div>
+                        <div class="form-group"><label>Coluna2</label><input type="text" name="coluna2" maxlength="50"></div>
+                        <div class="form-group"><label>x</label><input type="text" name="x" maxlength="50"></div>
+                        <div class="form-group" style="grid-column: span 2;"><label>Observação</label><input type="text" name="observacao" maxlength="500"></div>
+                    </div>
+                    <button type="submit" class="btn-primary" style="margin-top: 30px; width: 100%; justify-content: center; height: 45px;"><i class="fa-solid fa-save"></i> Gravar Informações</button>
+                </form>
+
+                <!-- Formulário Celular (oculto) -->
+                <form id="form-cadastro-celular" style="display: none;">
+                    <div class="form-section-title">1. Dados do Aparelho</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>IMEI *</label><input type="text" name="imei" maxlength="30" required></div>
+                        <div class="form-group"><label>Modelo</label><input type="text" name="modelo" maxlength="100"></div>
+                        <div class="form-group"><label>Marca</label><input type="text" name="marca" maxlength="50"></div>
+                        <div class="form-group"><label>Nº Linha</label><input type="text" name="numero_linha" maxlength="20"></div>
+                        <div class="form-group"><label>Status</label>
+                            <select name="status"><option>Ativo</option><option>Disponível</option><option>Em Manutenção</option><option>Inativo</option></select>
+                        </div>
+                    </div>
+                    <div class="form-section-title">2. Atribuição (Planilha)</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Emp Destino</label><input type="text" name="emp_destino"></div>
+                        <div class="form-group"><label>Filial Destino</label><input type="text" name="filial_destino"></div>
+                        <div class="form-group"><label>Colaborador</label><input type="text" name="colaborador"></div>
+                        <div class="form-group"><label>Assinou Termo?</label><select name="assinou_termo"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></div>
+                        <div class="form-group"><label>MU?</label><select name="mu"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></div>
+                    </div>
+                    <div class="form-section-title">3. Acessórios</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Fone</label><select name="fone"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></div>
+                        <div class="form-group"><label>Carregador</label><select name="carregador"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></div>
+                        <div class="form-group"><label>Cabo</label><select name="cabo"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></div>
+                        <div class="form-group"><label>Conforme Orçamento?</label><select name="conforme_orcamento"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></div>
+                    </div>
+                    <div class="form-section-title">4. Observações e Outros</div>
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;"><label>OBS</label><textarea name="obs" maxlength="500" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;" rows="2"></textarea></div>
+                        <div class="form-group"><label>Coluna1</label><input type="text" name="coluna1"></div>
+                        <div class="form-group"><label>Patrimônio</label><input type="text" name="patrimonio"></div>
+                    </div>
+                    <div class="form-section-title">5. Datas</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Data Entrega</label><input type="date" name="data_entrega"></div>
+                        <div class="form-group"><label>Venc. Garantia</label><input type="date" name="data_vencimento_garantia"></div>
+                    </div>
+                    <button type="submit" class="btn-primary" style="margin-top:30px;width:100%;height:45px;"><i class="fa-solid fa-save"></i> Salvar Celular</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ABA COMPRAS -->
+        <div id="aba-compras" class="tab-content">
+            <div class="compras-container" style="display: flex; flex-direction: column; gap: 30px;">
+                <div class="form-container" style="background: #ffffff; padding: 25px; border-radius: 6px; border-top: 4px solid var(--tracbel-yellow);">
+                    <h3><i class="fa-solid fa-cart-plus"></i> Nova Solicitação de Compra TI</h3>
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Qualquer analista ou técnico pode solicitar um ativo. Ele nascerá com status PENDENTE aguardando liberação do Gerente.</p>
+                    <form id="form-solicitar-compra">
+                        <div class="form-grid">
+                            <div class="form-group"><label>Equipamento / Item *</label><input type="text" id="compra-equipamento" placeholder="Ex: Notebook Dell Latitude 3440" required></div>
+                            <div class="form-group"><label>Quantidade *</label><input type="number" id="compra-quantidade" min="1" value="1" required></div>
+                            <div class="form-group"><label>Filial Destino *</label><input type="text" id="compra-filial" placeholder="Ex: Contagem" required></div>
+                            <div class="form-group"><label>Setor Beneficiado</label><input type="text" id="compra-setor" placeholder="Ex: Pós-Venda"></div>
+                            <div class="form-group"><label>Colaborador Final (Beneficiado)</label><input type="text" id="compra-beneficiado" placeholder="Nome do usuário"></div>
+                            <div class="form-group"><label>Número do Chamado (GLPI/ServiceNow)</label><input type="text" id="compra-chamado" placeholder="Ex: 145892"></div>
+                        </div>
+                        <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%; justify-content: center; height: 42px;"><i class="fa-solid fa-paper-plane"></i> Enviar Solicitação para o Gerente</button>
+                    </form>
+                </div>
+                <div style="background: #ffffff; padding: 25px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; background: #f8f9fa; padding: 12px; border-radius: 4px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="font-weight: bold; font-size: 0.9rem; color: #333;"><i class="fa-solid fa-calendar-days"></i> Filtrar por Mês:</label>
+                            <select id="filtro-compras-mes" style="padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; cursor: pointer; background: white;">
+                                <option value="todos">Todos os Meses</option>
+                                <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+                                <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+                                <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+                                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 280px; background: white; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px;">
+                            <i class="fa-solid fa-magnifying-glass" style="color: #666;"></i>
+                            <input type="text" id="search-compras-input" placeholder="Buscar por Equipamento, Chamado, OC, Filial ou Beneficiado..." style="border: none; width: 100%; outline: none; font-size: 0.9rem;">
+                        </div>
+                    </div>
+                    <h4 style="color: var(--tracbel-dark); margin-bottom: 15px;"><i class="fa-solid fa-rectangle-list"></i> Controle de Compras</h4>
+                    <div class="table-container" style="overflow-x: auto; max-width: 100%;">
+                        <table id="tabela-compras" style="width: 100%; white-space: nowrap;">
+                            <thead>
+                                <tr>
+                                    <th>Item (ID)</th><th>Data Solicitação</th><th>Chamado</th><th>Quantidade</th>
+                                    <th>Equipamentos</th><th>Filial</th><th>Setor</th><th>Beneficiado</th>
+                                    <th>Status (Gerente)</th><th>Ação (Logística)</th><th>Data Envio/Instalação</th>
+                                    <th>Número da OC</th><th id="th-acoes-gerente" style="text-align: center;">Gerenciamento de Fluxo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="compras-corpo">
+                                <tr><td colspan="13" class="loading-td">Carregando painel de requisições...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA USUÁRIOS -->
+        <div id="aba-usuarios" class="tab-content">
+            <div class="users-container" style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px;">
+                <div class="users-header">
+                    <h3><i class="fa-solid fa-users-gear"></i> Controle de Perfil SSO</h3>
+                    <p>Status de privilégio do e-mail autenticado atual.</p>
+                </div>
+                <table class="tabela-simples">
+                    <thead>
+                        <tr><th>Seu E-mail Corporativo</th><th>ID do Firebase (UID)</th><th>Seu Nível Atual</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td id="usr-email">Buscando...</td>
+                            <td id="usr-uid" style="font-family: monospace;">-</td>
+                            <td id="usr-role">-</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <h4 style="color: var(--tracbel-dark); margin-top: 10px;"><i class="fa-solid fa-users-viewfinder"></i> Usuários da TI com Acesso Cadastrados</h4>
+                <table class="tabela-simples">
+                    <thead>
+                        <tr><th>E-mail Corporativo</th><th>Ações de Gerenciamento e Nível</th></tr>
+                    </thead>
+                    <tbody id="usuarios-lista-corpo">
+                        <tr><td colspan="2" class="loading-td">Buscando equipe autorizada...</td></tr>
+                    </tbody>
+                </table>
+                <div id="painel-gestao-ti" style="background: #fdfefe; border: 1px solid #eef2f5; padding: 25px; border-radius: 6px; border-left: 5px solid var(--tracbel-yellow);">
+                    <h4 style="color: var(--tracbel-dark); margin-bottom: 10px;"><i class="fa-solid fa-user-plus"></i> Adicionar Manualmente ou Alterar Usuário</h4>
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Digite o e-mail exato do colaborador corporativo Tracbel para registrá-lo ou alterar o nível dele diretamente no banco.</p>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <input type="email" id="gestao-email" placeholder="exemplo.colaborador@tracbel.com.br" style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; outline: none;">
+                        <select id="gestao-role" style="padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; background: white;">
+                            <option value="admin">⭐ Tornar Administrador</option>
+                            <option value="user">📖 Acesso Comum (Apenas Leitura)</option>
+                        </select>
+                        <button id="btn-salvar-permissao" class="btn-primary" style="height: 40px; white-space: nowrap;"><i class="fa-solid fa-shield-halved"></i> Salvar no Banco</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA CELULARES -->
+        <div id="aba-celulares" class="tab-content">
+            <section class="dashboard-cards">
+                <div class="card"><h3>Total de Celulares</h3><p id="total-celulares">0</p></div>
+                <div class="card card-warning"><h3>Garantias Expiradas</h3><p id="celulares-expiradas">0</p></div>
+                <div class="card card-info" style="border-left-color:#2980b9;"><h3>Disponíveis</h3><p id="celulares-disponiveis" style="color:#2980b9;">0</p></div>
+                <div class="card card-success" style="border-left-color:#2ecc71;"><h3>Ativos</h3><p id="celulares-ativos" style="color:#2ecc71;">0</p></div>
+            </section>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0;">
+                <div style="background:#fff; padding:15px; border-radius:6px; border:1px solid #eef2f5;">
+                    <h4><i class="fa-solid fa-chart-pie"></i> Distribuição por Marca</h4>
+                    <div style="height:160px;"><canvas id="chart-marcas-celulares"></canvas></div>
+                </div>
+                <div style="background:#fff; padding:15px; border-radius:6px; border:1px solid #eef2f5;">
+                    <h4><i class="fa-solid fa-building"></i> Distribuição por Empresa</h4>
+                    <div style="height:160px;"><canvas id="chart-empresas-celulares"></canvas></div>
+                </div>
+            </div>
+            <section class="actions-bar">
+                <div class="search-box" style="width:550px;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-celulares-input" placeholder="Buscar por IMEI, colaborador...">
+                    <select id="filtro-coluna-celulares" style="border:none;background:#eef2f5;padding:5px;border-radius:4px;">
+                        <option value="todos">Todas as Colunas</option>
+                        <option value="imei">IMEI</option>
+                        <option value="colaborador">Colaborador</option>
+                        <option value="modelo">Modelo</option>
+                        <option value="marca">Marca</option>
+                        <option value="emp_destino">Emp Destino</option>
+                    </select>
+                </div>
+                <div class="upload-zone">
+                    <form id="upload-form-celulares" enctype="multipart/form-data">
+                        <label for="file-input-celulares" class="btn-primary"><i class="fa-solid fa-file-excel"></i> Importar Planilha</label>
+                        <input type="file" id="file-input-celulares" name="planilha" accept=".xlsx, .xls, .csv" style="display: none;">
+                        <span id="file-name-celulares" style="margin-left: 10px; font-size: 0.85rem; color: #666;">Nenhum arquivo</span>
+                    </form>
+                </div>
+            </section>
+            <main class="table-container">
+                <table id="tabela-celulares">
+                    <thead><tr>
+                        <th>IMEI</th><th>Modelo</th><th>Marca</th><th>Nº Linha</th><th>Colaborador</th>
+                        <th>Emp Destino</th><th>Filial Destino</th><th>Assinou Termo</th><th>Fone</th>
+                        <th>Carregador</th><th>Cabo</th><th>OBS</th><th>Conforme Orçamento</th><th>Status</th><th>Ações</th>
+                    </tr></thead>
+                    <tbody id="celulares-corpo"><tr><td colspan="15" class="loading-td">Carregando...</td></tr></tbody>
+                </table>
+            </main>
+        </div>
+    </div>
+    <script src="/js/app.js"></script>
+</body>
+</html>

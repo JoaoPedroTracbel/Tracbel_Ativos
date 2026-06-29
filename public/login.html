@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracbel Ativos | Autenticação</title>
+    <link rel="stylesheet" href="/css/estilo.css">
+    <style>
+        .login-body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #23262B; }
+        .login-box { background: #FFFFFF; padding: 40px; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center; border-top: 5px solid #FAB800; }
+        .login-box img { height: 60px; margin-bottom: 20px; }
+        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #E0E0E0; border-radius: 4px; outline: none; font-size: 1rem; transition: border 0.2s; }
+        .login-box input:focus { border-color: #FAB800; }
+        .login-box button { width: 100%; padding: 12px; background-color: #FAB800; border: none; font-weight: bold; color: #23262B; cursor: pointer; border-radius: 4px; font-size: 1rem; margin-top: 15px; transition: background 0.2s; }
+        .login-box button:hover { background-color: #D9A000; }
+        .login-box button:disabled { background-color: #CCCCCC; cursor: not-allowed; }
+        .link-toggle { margin-top: 15px; display: block; color: #2980B9; cursor: pointer; font-size: 0.9rem; text-decoration: none; user-select: none; }
+    </style>
+</head>
+<body class="login-body">
+
+    <div class="login-box">
+        <img src="css/images/TRACBEL_HZ_COR_NEG_PR.png" alt="Tracbel">
+        <h3 id="form-title" style="margin-bottom: 15px; color: #333; font-weight: 700;">Acessar Inventário</h3>
+        
+        <form id="auth-form">
+            <input type="email" id="email" placeholder="E-mail corporativo" required>
+            <input type="password" id="password" placeholder="Senha" required minlength="6">
+            <button type="submit" id="btn-submit" disabled>Carregando chaves...</button>
+        </form>
+
+        <a id="toggle-auth" class="link-toggle">Não tem conta? Solicitar acesso de TI</a>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        let auth;
+        let modoLogin = true;
+        const form = document.getElementById('auth-form');
+        const title = document.getElementById('form-title');
+        const btnSubmit = document.getElementById('btn-submit');
+        const toggleBtn = document.getElementById('toggle-auth');
+
+        // Inicialização protegida: busca as chaves injetadas dinamicamente pelo back-end
+        async function inicializarSeguranca() {
+            try {
+                const resposta = await fetch('/api/config/firebase');
+                const firebaseConfig = await resposta.json();
+                
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Entrar no Sistema";
+            } catch (err) {
+                title.textContent = "Erro de Segurança";
+                btnSubmit.textContent = "Chaves Bloqueadas";
+                alert("🚨 Não foi possível resgatar as chaves seguras do servidor Tracbel.");
+            }
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            modoLogin = !modoLogin;
+            if (!modoLogin) {
+                title.textContent = "Criar Cadastro de TI";
+                btnSubmit.textContent = "Registrar Nova Conta";
+                toggleBtn.textContent = "Já possui cadastro? Fazer Login";
+            } else {
+                title.textContent = "Acessar Inventário";
+                btnSubmit.textContent = "Entrar no Sistema";
+                toggleBtn.textContent = "Não tem conta? Solicitar acesso de TI";
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!auth) return;
+            
+            const emailInput = document.getElementById('email').value.trim().toLowerCase();
+            const passwordInput = document.getElementById('password').value;
+
+            if (!emailInput.endsWith('@tracbel.com.br')) {
+                alert("⚠️ Acesso negado. Use estritamente o seu e-mail corporativo @tracbel.com.br");
+                return;
+            }
+
+            try {
+                btnSubmit.disabled = true;
+                btnSubmit.textContent = "Processando...";
+                
+                let credencial;
+                if (modoLogin) {
+                    credencial = await signInWithEmailAndPassword(auth, emailInput, passwordInput);
+                } else {
+                    credencial = await createUserWithEmailAndPassword(auth, emailInput, passwordInput);
+                }
+
+                const token = await credencial.user.getIdToken();
+
+                // ------------------------------------------------------------------
+                // VALIDAÇÃO CRÍTICA DE SEGURO CONTRA ACESSOS PENDENTES (MÓDULO 4)
+                // ------------------------------------------------------------------
+                const respostaPerfil = await fetch('/api/auth/perfil', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!respostaPerfil.ok) {
+                    const dadosErro = await respostaPerfil.json();
+                    
+                    // Se o back-end responder informando que o usuário está na fila de espera
+                    if (dadosErro.error === 'PENDENTE_APROVACAO') {
+                        await signOut(auth); // Desloga a instância local do Firebase imediatamente
+                        localStorage.removeItem('firebaseToken');
+                        localStorage.removeItem('ultimoAcessoAtivo');
+                        
+                        alert(`🔒 ACESSO RETIDO:\n\n${dadosErro.mensagem}`);
+                        window.location.reload();
+                        return;
+                    }
+                }
+                // ------------------------------------------------------------------
+
+                // Se o usuário já estiver ativo (user/admin), segue o fluxo original
+                localStorage.setItem('firebaseToken', token);
+                localStorage.setItem('ultimoAcessoAtivo', Date.now());
+                
+                if (!modoLogin) {
+                    alert("Conta de TI criada com sucesso! Peça ao Administrador para ativar seu acesso no painel.");
+                }
+
+                window.location.href = '/index.html';
+
+            } catch (err) {
+                if (err.code === 'auth/invalid-credential') {
+                    alert("E-mail corporativo ou senha incorretos.");
+                } else if (err.code === 'auth/email-already-in-use') {
+                    alert("Este e-mail já está cadastrado.");
+                } else {
+                    alert("Falha na comunicação com o serviço de autenticação.");
+                }
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = modoLogin ? "Entrar no Sistema" : "Registrar Nova Conta";
+            }
+        });
+
+        inicializarSeguranca();
+    </script>
+</body>
+</html>
