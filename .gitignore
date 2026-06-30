@@ -26,3 +26,8 @@ coverage/
 # Arquivos temporários
 *.tmp
 *.temp
+
+# Arquivos Database
+*.sqlite
+*.db
+*.sql
